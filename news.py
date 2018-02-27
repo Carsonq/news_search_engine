@@ -13,6 +13,7 @@ import time
 import newspaper
 import feedparser
 from datetime import datetime
+from random import shuffle
 from config import Configure
 
 from util import Util
@@ -115,17 +116,28 @@ def load_to_disk(fileid, content):
 
 def crawl():
     print '%s\tstart crawling' % str(datetime.now())
+    crawl_list = []
     for source_name in CFG.get_sections():
         rss_urls = CFG.get_config(source_name, 'rss')
         if rss_urls:
             for rss_url in rss_urls.split(';'):
-                crawl_rss(rss_url)
+                crawl_list.append(('rss', rss_url))
+                
 
         web_urls = CFG.get_config(source_name, 'web')
         if web_urls:
             for web_url in web_urls.split(';'):
-                crawl_web(web_url)
-                crawl_web_categorypage(web_url)
+                crawl_list.append(('web', rss_url))
+
+    shuffle(crawl_list)
+
+    for c in crawl_list:
+        if c[0] == 'rss':
+            crawl_rss(c[1])
+        elif c[0] == 'web':
+            crawl_web(c[1])
+            crawl_web_categorypage(c[1])
+            
     print '%s\tend crawling' % str(datetime.now())
 
 
