@@ -61,7 +61,7 @@ def calculate_index():
     print '%s\tstart update index' % str(datetime.now())
     cfg = Configure('./config/config.cfg')
     article_repo = cfg.get_config('running', 'article_repo')
-    file_names = os.listdir(article_repo)
+    file_names = os.listdir(os.path.join(article_repo, datetime.today().strftime('%m%d%Y')))
     doc_count = 0
     for filename in file_names:
         if not filename.endswith('_DONE'):

@@ -18,6 +18,11 @@ from config import Configure
 from util import Util
 
 
+CFG = Configure('./config/config.cfg')
+ARTICLEREPO = os.path.join(CFG.get_config('running', 'article_repo'), datetime.today().strftime('%m%d%Y'))
+if not os.path.isdir(ARTICLEREPO):
+    os.makedirs(ARTICLEREPO)
+
 def crawl_web_categorypage(url):
     paper = newspaper.build(url, memoize_articles=False, language='en')
 
@@ -28,10 +33,11 @@ def crawl_web(url):
     paper = newspaper.build(url, memoize_articles=False, language='en')
 
     for content in paper.articles:
-        article, text = crawl_web_page(content)
-        if article and text and check_exist(article['id']):
-            load_to_disk(article['id'], text)
-            load_to_db(article)
+        if check_exist_url(content.link):
+            article, text = crawl_web_page(content)
+            if article and text and check_exist(article['id']):
+                load_to_disk(article['id'], text)
+                load_to_db(article)
 
 @Util.timer
 def crawl_web_page(content):
@@ -58,16 +64,16 @@ def crawl_rss(url):
     page = feedparser.parse(url)
     if page.status == 200:
         for entry in page.entries:
-            article, content = crawl_rss_page(entry)
-            if article and content and check_exist(article['id']):
-                load_to_disk(article['id'], content)
-                load_to_db(article)
+            if check_exist_url(entry.link):
+                article, content = crawl_rss_page(entry)
+                if article and content and check_exist(article['id']):
+                    load_to_disk(article['id'], content)
+                    load_to_db(article)
 
 @Util.timer
 def crawl_rss_page(entry):
     article = {}
     try:
-
         article['url'] = entry.link
         date = entry.published_parsed
         article['publish_time'] = datetime.fromtimestamp(time.mktime(date)).isoformat()
@@ -87,6 +93,12 @@ def crawl_rss_page(entry):
     return article, content.text
 
 @Util.dbconnect('articles')
+def check_exist_url(url, c):
+    record = c.find_one({'url': url})
+
+    return record == None
+
+@Util.dbconnect('articles')
 def check_exist(keyid, c):
     record = c.find_one({'id': keyid})
 
@@ -97,27 +109,23 @@ def load_to_db(record, c):
     c.insert_one(record)
 
 def load_to_disk(fileid, content):
-    cfg = Configure('./config/config.cfg')
-    article_repo = cfg.get_config('running', 'article_repo')
-    filename = os.path.join(article_repo, fileid)
+    filename = os.path.join(ARTICLEREPO, fileid)
     with open(filename, 'w') as fileobj:
         fileobj.write(content)
 
 def crawl():
     print '%s\tstart crawling' % str(datetime.now())
-    cfg = Configure('./config/config.cfg')
-    for source_name in cfg.get_sections():
-        rss_urls = cfg.get_config(source_name, 'rss')
+    for source_name in CFG.get_sections():
+        rss_urls = CFG.get_config(source_name, 'rss')
         if rss_urls:
             for rss_url in rss_urls.split(';'):
                 crawl_rss(rss_url)
 
-        web_urls = cfg.get_config(source_name, 'web')
+        web_urls = CFG.get_config(source_name, 'web')
         if web_urls:
             for web_url in web_urls.split(';'):
                 crawl_web(web_url)
                 crawl_web_categorypage(web_url)
-
     print '%s\tend crawling' % str(datetime.now())
 
 
